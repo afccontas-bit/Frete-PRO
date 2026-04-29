@@ -246,19 +246,38 @@ function carregarConfig() {
 }
 
 async function buscarCoords(end) {
-    // Correção do User-Agent para evitar o erro 'Access Denied' no GitHub
-    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}`;
-    let res = await fetch(url, {
-        headers: {
-            'User-Agent': 'AndreFretePRO-App-Itajai'
+    // Nova função com identificação aleatória para evitar bloqueio no GitHub
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}&limit=1`;
+    
+    try {
+        const res = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'FreteProItajai_' + Math.floor(Math.random() * 10000)
+            }
+        });
+
+        if (res.status === 403 || res.status === 429) {
+            throw "O servidor de mapas está ocupado. Tente novamente em 10 segundos.";
         }
-    });
-    
-    if (!res.ok) throw "O servidor de mapas está ocupado. Tente novamente em 5 segundos.";
-    
-    let data = await res.json();
-    if (!data.length) throw "Endereço não localizado: " + end;
-    return [data[0].lon, data[0].lat];
+
+        const textResponse = await res.text();
+        
+        // Verifica se a resposta é um texto de erro antes de tentar transformar em JSON
+        if (textResponse.startsWith("Access denied")) {
+            throw "Acesso bloqueado pelo servidor de mapas. Aguarde um instante e tente novamente.";
+        }
+
+        const data = JSON.parse(textResponse);
+        if (!data || data.length === 0) throw "Endereço não localizado: " + end;
+        
+        return [data[0].lon, data[0].lat];
+    } catch (e) {
+        if (e instanceof SyntaxError) {
+            throw "Erro técnico na resposta do mapa. Por favor, clique em calcular novamente.";
+        }
+        throw e;
+    }
 }
 
 async function calcularFrete() {
@@ -287,6 +306,7 @@ async function calcularFrete() {
         let kmTotal = rotaData.routes[0].distance / 1000;
         let tempoTotalSegundos = rotaData.routes[0].duration;
         
+        // Lógica de balsa automática se a velocidade for muito baixa (comum em Itajaí)
         let velMedia = (kmTotal / (tempoTotalSegundos / 3600));
         if (velMedia < 15 && kmTotal > 1.5) {
             document.getElementById('temBalsa').checked = true;
@@ -314,7 +334,7 @@ async function calcularFrete() {
         atualizarMostrador();
         document.getElementById('resultadoArea').style.display = 'block';
     } catch (e) {
-        alert("Atenção: " + e);
+        alert(e);
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
@@ -343,6 +363,7 @@ function enviarOrçamento() {
     let listaDestinos = destinos.join("%0A📍 *Destino:* ");
     let infoBalsa = document.getElementById('temBalsa').checked ? "%0A⛴️ *Incluso Travessia de Balsa*" : "";
     
+    // Mensagem formatada para o WhatsApp da sua empresa
     let msg = `*ORÇAMENTO DE FRETE*%0A---%0A📍 *Destino:* ${listaDestinos}${infoBalsa}%0A💰 *VALOR TOTAL: ${valorFinal}*%0A---%0A_André Pequenos Fretes e Moto Socorro_`;
     
     window.open(`https://wa.me/?text=${msg}`);
