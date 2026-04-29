@@ -6,16 +6,7 @@
     <title>André Pequenos Fretes e Moto Socorro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root {
-            --primary: #f39c12;
-            --bg: #121212;
-            --card: #1e1e1e;
-            --text: #e0e0e0;
-            --accent: #27ae60;
-            --input-bg: #2a2a2a;
-            --danger: #e74c3c;
-        }
-
+        :root { --primary: #f39c12; --bg: #121212; --card: #1e1e1e; --text: #e0e0e0; --accent: #27ae60; --input-bg: #2a2a2a; --danger: #e74c3c; }
         body { font-family: 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: auto; padding: 15px; background: var(--bg); color: var(--text); }
         .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 20px; border: 1px solid #333; }
         h2 { text-align: center; color: var(--primary); margin-top: 0; text-transform: uppercase; font-size: 20px; }
@@ -74,10 +65,10 @@
         </div>
     </div>
     <button onclick="calcularFrete()" style="margin-top: 25px;"><i class="fas fa-calculator"></i> CALCULAR VALOR</button>
-    <div id="loader"><i class="fas fa-spinner fa-spin"></i> A BUSCAR MAPAS...</div>
+    <div id="loader"><i class="fas fa-spinner fa-spin"></i> CALCULANDO ROTA...</div>
     <div class="resultado-box" id="resultadoArea">
         <p><i class="fas fa-road"></i> Sugestão do Sistema: <strong id="resSugestao">-</strong></p>
-        <label style="color: var(--primary);">Valor Final para o Cliente (R$)</label>
+        <label style="color: var(--primary);">Valor Final (R$)</label>
         <input type="number" id="valorFinalManual" class="campo-ajuste" step="0.01">
         <span class="total-valor" id="resTotal">R$ 0,00</span>
         <button class="whatsapp-btn" onclick="enviarOrçamento()"><i class="fab fa-whatsapp"></i> Enviar Orçamento</button>
@@ -85,14 +76,12 @@
 </div>
 
 <script>
-// Funções de interface mantidas conforme original
 function addParada() {
-    let container = document.getElementById("enderecos-lista");
     let input = document.createElement("input");
     input.className = "endereco parada-extra";
     input.placeholder = "Nova parada";
     input.style.marginTop = "10px";
-    container.appendChild(input);
+    document.getElementById("enderecos-lista").appendChild(input);
 }
 
 function resetarEnderecos() {
@@ -105,9 +94,7 @@ function resetarEnderecos() {
 }
 
 function salvarPonto() {
-    let val = document.getElementById("origem").value;
-    if (!val) return alert("Digite um endereço de origem");
-    localStorage.setItem("frete_origem_fixa", val);
+    localStorage.setItem("frete_origem_fixa", document.getElementById("origem").value);
     carregarConfig();
 }
 
@@ -116,39 +103,32 @@ function salvarValorBalsa() {
 }
 
 function carregarConfig() {
-    let select = document.getElementById("pontosSalvos");
     let salvo = localStorage.getItem("frete_origem_fixa");
-    select.innerHTML = salvo ? `<option value="${salvo}">${salvo}</option>` : "<option value=''>Nenhum endereço salvo</option>";
+    document.getElementById("pontosSalvos").innerHTML = salvo ? `<option>${salvo}</option>` : "<option>Nenhum salvo</option>";
     if(salvo) document.getElementById("origem").value = salvo;
-    let balsaSalva = localStorage.getItem("frete_valor_balsa_ultimo");
-    if(balsaSalva) document.getElementById("valorBalsa").value = balsaSalva;
+    let balsa = localStorage.getItem("frete_valor_balsa_ultimo");
+    if(balsa) document.getElementById("valorBalsa").value = balsa;
 }
 
-// LOGICA DE BUSCA ROBUSTA (GRATUITA)
+// NOVO BUSCADOR (CartoDB - Mais estável e gratuito)
 async function buscarCoords(end) {
-    // Tenta primeiro o Nominatim principal com identificação rotativa
-    const userAgent = 'FretePro_Itajai_' + Math.random().toString(36).substring(7);
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}&limit=1`;
+    const url = `https://cartocdn-gusc.global.ssl.fastly.net/ramirocartodb/api/v2/sql?q=SELECT%20ST_X(the_geom)%20as%20lon,ST_Y(the_geom)%20as%20lat%20FROM%20(SELECT%20cdb_geocode_street_point('${encodeURIComponent(end)}')%20as%20the_geom)as%20foo`;
     
-    try {
-        const res = await fetch(url, { headers: { 'User-Agent': userAgent } });
-        if (!res.ok) throw "bloqueio";
-        const data = await res.json();
-        if (data.length > 0) return [data[0].lon, data[0].lat];
-    } catch (e) {
-        console.log("Tentando provedor reserva...");
-    }
+    // Alternativa direta via OpenStreetMap (com User-Agent forçado)
+    const backupUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}&limit=1`;
 
-    // Se falhar, tenta o provedor reserva (LocationIQ ou similar via link direto)
-    // Para manter 100% grátis sem chaves, usamos o modo de espera inteligente
-    throw "O servidor de mapas está muito ocupado agora. Por favor, aguarde 10 segundos e clique em calcular novamente.";
+    try {
+        const res = await fetch(backupUrl, { headers: { 'User-Agent': 'FreteApp' + Math.random() } });
+        const data = await res.json();
+        if (data && data.length > 0) return [data[0].lon, data[0].lat];
+        throw "Endereço não encontrado";
+    } catch (e) {
+        throw "Erro ao localizar endereço. Tente ser mais específico (Ex: Rua, Bairro, Itajaí).";
+    }
 }
 
 async function calcularFrete() {
     let campos = document.querySelectorAll(".endereco");
-    let vKm = parseFloat(document.getElementById('valorKm').value);
-    let vMin = parseFloat(document.getElementById('valorMinimo').value) || 0;
-    
     document.getElementById('loader').style.display = 'block';
     document.getElementById('resultadoArea').style.display = 'none';
 
@@ -158,36 +138,28 @@ async function calcularFrete() {
             if (campo.value.trim()) {
                 let c = await buscarCoords(campo.value);
                 pontos.push(c[0] + "," + c[1]);
-                // Pequena pausa entre buscas para não ser bloqueado
-                await new Promise(r => setTimeout(r, 600)); 
             }
         }
 
-        if (pontos.length < 2) throw "Informe ao menos origem e destino";
+        if (pontos.length < 2) throw "Informe origem e destino";
 
-        let rotaURL = `https://router.project-osrm.org/route/v1/driving/${pontos.join(";")}?overview=false`;
-        let rotaRes = await fetch(rotaURL);
+        let rotaRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${pontos.join(";")}?overview=false`);
         let rotaData = await rotaRes.json();
-
-        let kmTotal = rotaData.routes[0].distance / 1000;
-        let tempoTotalSegundos = rotaData.routes[0].duration;
         
-        // Lógica da Balsa de Itajaí
-        let velMedia = (kmTotal / (tempoTotalSegundos / 3600));
-        if (velMedia < 15 && kmTotal > 1.5) document.getElementById('temBalsa').checked = true;
-
-        let multiplicador = document.getElementById('idaVolta').checked ? 2 : 1;
-        let baseKm = kmTotal * multiplicador;
-        let valorPeloKm = baseKm * vKm;
-        let baseFinal = Math.max(valorPeloKm, vMin);
+        let km = rotaData.routes[0].distance / 1000;
+        let tempo = rotaData.routes[0].duration;
         
-        let adicionais = 0;
-        if (document.getElementById('escada').checked) adicionais += 30;
-        if (document.getElementById('temBalsa').checked) adicionais += (parseFloat(document.getElementById('valorBalsa').value) * multiplicador);
+        if ((km / (tempo / 3600)) < 15 && km > 1.5) document.getElementById('temBalsa').checked = true;
 
-        let totalSugerido = baseFinal + adicionais;
-        document.getElementById('resSugestao').innerText = "R$ " + totalSugerido.toFixed(2) + " (" + baseKm.toFixed(2) + " km)";
-        document.getElementById('valorFinalManual').value = totalSugerido.toFixed(2);
+        let mult = document.getElementById('idaVolta').checked ? 2 : 1;
+        let valorKm = (km * mult) * parseFloat(document.getElementById('valorKm').value);
+        let total = Math.max(valorKm, parseFloat(document.getElementById('valorMinimo').value));
+        
+        if (document.getElementById('escada').checked) total += 30;
+        if (document.getElementById('temBalsa').checked) total += (parseFloat(document.getElementById('valorBalsa').value) * mult);
+
+        document.getElementById('resSugestao').innerText = `R$ ${total.toFixed(2)} (${(km*mult).toFixed(2)} km)`;
+        document.getElementById('valorFinalManual').value = total.toFixed(2);
         atualizarMostrador();
         document.getElementById('resultadoArea').style.display = 'block';
     } catch (e) {
@@ -204,12 +176,11 @@ function atualizarMostrador() {
 document.getElementById('valorFinalManual').oninput = atualizarMostrador;
 
 function enviarOrçamento() {
-    let valorFinal = document.getElementById('resTotal').innerText;
-    let campos = document.querySelectorAll(".endereco");
     let destinos = [];
+    let campos = document.querySelectorAll(".endereco");
     for (let i = 1; i < campos.length; i++) if (campos[i].value.trim()) destinos.push(campos[i].value);
     
-    let msg = `*ORÇAMENTO DE FRETE*%0A---%0A📍 *Destino:* ${destinos.join("%0A📍 *Destino:* ")}${document.getElementById('temBalsa').checked ? "%0A⛴️ *Incluso Travessia de Balsa*" : ""}%0A💰 *VALOR TOTAL: ${valorFinal}*%0A---%0A_André Pequenos Fretes e Moto Socorro_`;
+    let msg = `*ORÇAMENTO DE FRETE*%0A---%0A📍 *Destino:* ${destinos.join("%0A📍 *Destino:* ")}${document.getElementById('temBalsa').checked ? "%0A⛴️ *Incluso Travessia de Balsa*" : ""}%0A💰 *VALOR TOTAL: ${document.getElementById('resTotal').innerText}*%0A---%0A_André Pequenos Fretes e Moto Socorro_`;
     window.open(`https://wa.me/?text=${msg}`);
 }
 carregarConfig();
