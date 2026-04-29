@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>André Pequenos Fretes e Moto Socorro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #f39c12;
+            --bg: #121212;
+            --card: #1e1e1e;
+            --text: #e0e0e0;
+            --accent: #27ae60;
+            --input-bg: #2a2a2a;
+            --danger: #e74c3c;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            max-width: 500px; 
+            margin: auto; 
+            padding: 15px; 
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+
+        h2 { text-align: center; color: var(--primary); margin-top: 0; text-transform: uppercase; font-size: 20px; }
+        
+        label { display: block; margin-top: 15px; font-size: 12px; color: #888; font-weight: bold; text-transform: uppercase; }
+
+        input, select, button { 
+            width: 100%; 
+            padding: 14px; 
+            margin-top: 8px; 
+            font-size: 16px; 
+            border-radius: 8px; 
+            border: 1px solid #444;
+            background: var(--input-bg);
+            color: white;
+            box-sizing: border-box;
+        }
+
+        button { 
+            background: var(--primary); 
+            color: #000; 
+            font-weight: bold; 
+            border: none; 
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-secondary { background: #444; color: white; margin-top: 10px; font-size: 13px; }
+        .btn-danger { background: var(--danger); color: white; margin-top: 10px; font-size: 13px; }
+
+        .grid-config { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px; 
+            margin-top: 10px; 
+        }
+
+        .switch { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            background: var(--input-bg); 
+            padding: 12px; 
+            border-radius: 8px; 
+            font-size: 12px;
+            border: 1px solid #444;
+        }
+
+        .switch input[type="checkbox"] { width: auto; margin: 0; }
+
+        /* Wrapper para alinhar check e valor da balsa lado a lado */
+        .balsa-inline {
+            grid-column: span 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--input-bg);
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            gap: 10px;
+        }
+
+        .balsa-inline label { margin: 0; font-size: 12px; color: var(--text); flex-grow: 1; }
+        
+        .balsa-inputs { display: flex; align-items: center; gap: 8px; }
+        
+        .balsa-inputs input[type="number"] { 
+            width: 75px; 
+            margin: 0; 
+            padding: 6px; 
+            font-size: 14px; 
+            text-align: center;
+            border: 1px solid var(--primary);
+        }
+
+        .resultado-box { 
+            margin-top: 20px; 
+            padding-top: 15px;
+            border-top: 2px dashed #444;
+            display: none;
+        }
+
+        .total-valor { font-size: 32px; color: var(--accent); display: block; text-align: center; margin: 10px 0; font-weight: bold; }
+
+        .campo-ajuste {
+            border: 2px solid var(--primary);
+            background: #333;
+            font-size: 20px;
+            text-align: center;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .whatsapp-btn { background: #25d366; color: white; margin-top: 20px; font-size: 18px; }
+        
+        #loader { display: none; text-align: center; margin: 15px 0; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2><i class="fas fa-truck-loading"></i> Frete PRO - Itajaí</h2>
+
+    <label>Origem Padrão</label>
+    <select id="pontosSalvos"></select>
+    <button class="btn-secondary" onclick="salvarPonto()">Salvar esta Origem</button>
+
+    <div id="enderecos-lista">
+        <label>Ponto de Partida</label>
+        <input class="endereco" id="origem" placeholder="Ex: Rua Joinville, Itajaí">
+        <label>Destino</label>
+        <input class="endereco" id="destino" placeholder="Ex: Centro, Balneário Camboriú">
+    </div>
+
+    <div class="grid-config">
+        <button class="btn-secondary" onclick="addParada()"><i class="fas fa-plus"></i> Parada</button>
+        <button class="btn-danger" onclick="resetarEnderecos()"><i class="fas fa-trash-alt"></i> Limpar</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="grid-config">
+        <div>
+            <label>R$ por KM</label>
+            <input type="number" id="valorKm" value="2.50">
+        </div>
+        <div>
+            <label>Mínimo (R$)</label>
+            <input type="number" id="valorMinimo" value="80.00">
+        </div>
+    </div>
+
+    <div class="grid-config">
+        <div class="switch">
+            <span>Ida/Volta</span>
+            <input type="checkbox" id="idaVolta">
+        </div>
+        <div class="switch">
+            <span>Escada (+30)</span>
+            <input type="checkbox" id="escada">
+        </div>
+        
+        <div class="balsa-inline">
+            <label>Balsa (R$)</label>
+            <div class="balsa-inputs">
+                <input type="number" id="valorBalsa" value="20.00" onchange="salvarValorBalsa()">
+                <input type="checkbox" id="temBalsa">
+            </div>
+        </div>
+    </div>
+
+    <button onclick="calcularFrete()" style="margin-top: 25px;"><i class="fas fa-calculator"></i> CALCULAR VALOR</button>
+    
+    <div id="loader"><i class="fas fa-spinner fa-spin"></i> CALCULANDO...</div>
+
+    <div class="resultado-box" id="resultadoArea">
+        <p><i class="fas fa-road"></i> Sugestão do Sistema: <strong id="resSugestao">-</strong></p>
+        
+        <label style="color: var(--primary);">Valor Final para o Cliente (R$)</label>
+        <input type="number" id="valorFinalManual" class="campo-ajuste" step="0.01">
+
+        <span class="total-valor" id="resTotal">R$ 0,00</span>
+        
+        <button class="whatsapp-btn" onclick="enviarOrçamento()"><i class="fab fa-whatsapp"></i> Enviar Orçamento</button>
+    </div>
+</div>
+
+<script>
+function addParada() {
+    let container = document.getElementById("enderecos-lista");
+    let input = document.createElement("input");
+    input.className = "endereco parada-extra";
+    input.placeholder = "Nova parada";
+    input.style.marginTop = "10px";
+    container.appendChild(input);
+}
+
+function resetarEnderecos() {
+    document.getElementById("origem").value = "";
+    document.getElementById("destino").value = "";
+    let extras = document.querySelectorAll(".parada-extra");
+    extras.forEach(el => el.remove());
+    document.getElementById("resultadoArea").style.display = "none";
+    document.getElementById('temBalsa').checked = false;
+    carregarConfig();
+}
+
+function salvarPonto() {
+    let val = document.getElementById("origem").value;
+    if (!val) return alert("Digite um endereço de origem");
+    localStorage.setItem("frete_origem_fixa", val);
+    carregarConfig();
+}
+
+// Salva o último valor inserido na balsa
+function salvarValorBalsa() {
+    let val = document.getElementById("valorBalsa").value;
+    localStorage.setItem("frete_valor_balsa_ultimo", val);
+}
+
+function carregarConfig() {
+    // Carregar endereço salvo
+    let select = document.getElementById("pontosSalvos");
+    let salvo = localStorage.getItem("frete_origem_fixa");
+    select.innerHTML = salvo ? `<option value="${salvo}">${salvo}</option>` : "<option value=''>Nenhum endereço salvo</option>";
+    if(salvo) document.getElementById("origem").value = salvo;
+    select.onchange = function() { if(this.value) document.getElementById("origem").value = this.value; };
+
+    // Carregar último valor de balsa inserido
+    let balsaSalva = localStorage.getItem("frete_valor_balsa_ultimo");
+    if(balsaSalva) document.getElementById("valorBalsa").value = balsaSalva;
+}
+
+async function buscarCoords(end) {
+    let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}`;
+    let res = await fetch(url);
+    let data = await res.json();
+    if (!data.length) throw "Endereço não localizado: " + end;
+    return [data[0].lon, data[0].lat];
+}
+
+async function calcularFrete() {
+    let campos = document.querySelectorAll(".endereco");
+    let vKm = parseFloat(document.getElementById('valorKm').value);
+    let vMin = parseFloat(document.getElementById('valorMinimo').value) || 0;
+    
+    document.getElementById('loader').style.display = 'block';
+    document.getElementById('resultadoArea').style.display = 'none';
+
+    try {
+        let pontos = [];
+        for (let campo of campos) {
+            if (campo.value) {
+                let c = await buscarCoords(campo.value);
+                pontos.push(c[0] + "," + c[1]);
+            }
+        }
+
+        if (pontos.length < 2) throw "Informe ao menos origem e destino";
+
+        let rotaURL = `https://router.project-osrm.org/route/v1/driving/${pontos.join(";")}?overview=false`;
+        let rotaRes = await fetch(rotaURL);
+        let rotaData = await rotaRes.json();
+
+        let kmTotal = rotaData.routes[0].distance / 1000;
+        let tempoTotalSegundos = rotaData.routes[0].duration;
+        
+        let velMedia = (kmTotal / (tempoTotalSegundos / 3600));
+        if (velMedia < 15 && kmTotal > 1.5) {
+            document.getElementById('temBalsa').checked = true;
+        }
+
+        let baseKm = kmTotal;
+        let multiplicador = document.getElementById('idaVolta').checked ? 2 : 1;
+        
+        if (document.getElementById('idaVolta').checked) baseKm *= 2;
+
+        let valorPeloKm = baseKm * vKm;
+        let baseFinal = Math.max(valorPeloKm, vMin);
+        
+        let adicionais = 0;
+        if (document.getElementById('escada').checked) adicionais += 30;
+        
+        if (document.getElementById('temBalsa').checked) {
+            let custoBalsaUnico = parseFloat(document.getElementById('valorBalsa').value) || 0;
+            // Aplica o multiplicador (dobra se ida e volta)
+            adicionais += (custoBalsaUnico * multiplicador);
+        }
+
+        let totalSugerido = baseFinal + adicionais;
+
+        document.getElementById('resSugestao').innerText = "R$ " + totalSugerido.toFixed(2) + " (" + baseKm.toFixed(2) + " km)";
+        document.getElementById('valorFinalManual').value = totalSugerido.toFixed(2);
+        
+        atualizarMostrador();
+        document.getElementById('resultadoArea').style.display = 'block';
+    } catch (e) {
+        alert("Erro: " + e);
+    } finally {
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+
+function atualizarMostrador() {
+    let v = parseFloat(document.getElementById('valorFinalManual').value) || 0;
+    document.getElementById('resTotal').innerText = "R$ " + v.toFixed(2);
+}
+
+document.getElementById('valorFinalManual').oninput = atualizarMostrador;
+
+function enviarOrçamento() {
+    let valorFinal = document.getElementById('resTotal').innerText;
+    let campos = document.querySelectorAll(".endereco");
+    let destinos = [];
+
+    for (let i = 1; i < campos.length; i++) {
+        if (campos[i].value.trim() !== "") {
+            destinos.push(campos[i].value);
+        }
+    }
+    
+    if (destinos.length === 0) return alert("Nenhum destino informado.");
+
+    let listaDestinos = destinos.join("%0A📍 *Destino:* ");
+    let infoBalsa = document.getElementById('temBalsa').checked ? "%0A⛴️ *Incluso Travessia de Balsa*" : "";
+    
+    let msg = `*ORÇAMENTO DE FRETE*%0A---%0A📍 *Destino:* ${listaDestinos}${infoBalsa}%0A💰 *VALOR TOTAL: ${valorFinal}*%0A---%0A_André Pequenos Fretes e Moto Socorro_`;
+    
+    window.open(`https://wa.me/?text=${msg}`);
+}
+
+carregarConfig();
+</script>
+
+</body>
+</html>
