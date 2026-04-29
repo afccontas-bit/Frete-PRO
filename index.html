@@ -85,7 +85,6 @@
 
         .switch input[type="checkbox"] { width: auto; margin: 0; }
 
-        /* Wrapper para alinhar check e valor da balsa lado a lado */
         .balsa-inline {
             grid-column: span 2;
             display: flex;
@@ -230,28 +229,33 @@ function salvarPonto() {
     carregarConfig();
 }
 
-// Salva o último valor inserido na balsa
 function salvarValorBalsa() {
     let val = document.getElementById("valorBalsa").value;
     localStorage.setItem("frete_valor_balsa_ultimo", val);
 }
 
 function carregarConfig() {
-    // Carregar endereço salvo
     let select = document.getElementById("pontosSalvos");
     let salvo = localStorage.getItem("frete_origem_fixa");
     select.innerHTML = salvo ? `<option value="${salvo}">${salvo}</option>` : "<option value=''>Nenhum endereço salvo</option>";
     if(salvo) document.getElementById("origem").value = salvo;
     select.onchange = function() { if(this.value) document.getElementById("origem").value = this.value; };
 
-    // Carregar último valor de balsa inserido
     let balsaSalva = localStorage.getItem("frete_valor_balsa_ultimo");
     if(balsaSalva) document.getElementById("valorBalsa").value = balsaSalva;
 }
 
 async function buscarCoords(end) {
+    // Correção do User-Agent para evitar o erro 'Access Denied' no GitHub
     let url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(end)}`;
-    let res = await fetch(url);
+    let res = await fetch(url, {
+        headers: {
+            'User-Agent': 'AndreFretePRO-App-Itajai'
+        }
+    });
+    
+    if (!res.ok) throw "O servidor de mapas está ocupado. Tente novamente em 5 segundos.";
+    
     let data = await res.json();
     if (!data.length) throw "Endereço não localizado: " + end;
     return [data[0].lon, data[0].lat];
@@ -288,10 +292,8 @@ async function calcularFrete() {
             document.getElementById('temBalsa').checked = true;
         }
 
-        let baseKm = kmTotal;
         let multiplicador = document.getElementById('idaVolta').checked ? 2 : 1;
-        
-        if (document.getElementById('idaVolta').checked) baseKm *= 2;
+        let baseKm = kmTotal * multiplicador;
 
         let valorPeloKm = baseKm * vKm;
         let baseFinal = Math.max(valorPeloKm, vMin);
@@ -301,7 +303,6 @@ async function calcularFrete() {
         
         if (document.getElementById('temBalsa').checked) {
             let custoBalsaUnico = parseFloat(document.getElementById('valorBalsa').value) || 0;
-            // Aplica o multiplicador (dobra se ida e volta)
             adicionais += (custoBalsaUnico * multiplicador);
         }
 
@@ -313,7 +314,7 @@ async function calcularFrete() {
         atualizarMostrador();
         document.getElementById('resultadoArea').style.display = 'block';
     } catch (e) {
-        alert("Erro: " + e);
+        alert("Atenção: " + e);
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
